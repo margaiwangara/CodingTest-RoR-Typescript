@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Container, ListGroup, Form } from "react-bootstrap";
+import React, { useEffect, useState } from "react";
+import { Container, ListGroup, Form, Alert } from "react-bootstrap";
 import { ResetButton } from "./uiComponent";
 import axios from "axios";
 
@@ -14,6 +14,9 @@ type Props = {
 };
 
 const TodoList: React.FC<Props> = ({ todoItems }) => {
+  const [error, setError] = useState('');
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+
   useEffect(() => {
     const token = document.querySelector(
       "[name=csrf-token]"
@@ -21,25 +24,66 @@ const TodoList: React.FC<Props> = ({ todoItems }) => {
     axios.defaults.headers.common["X-CSRF-TOKEN"] = token.content;
   }, []);
 
-  const checkBoxOnCheck = (
+  useEffect(() => {
+    let isMounted = true;
+
+    if(isMounted) {
+      setTodos(todoItems);
+    }
+    
+    return () => {
+      isMounted = false;
+    }
+  }, [todoItems]);
+
+  const checkBoxOnCheck = async (
     e: React.ChangeEvent<HTMLInputElement>,
     todoItemId: number
-  ): void => {
-    axios.post("/todo", {
-      id: todoItemId,
-      checked: e.target.checked,
-    });
+  ): Promise<void> => {
+    try {
+      await axios.post('/todo', {
+        id: todoItemId,
+        checked: e.target.checked
+      });
+      setTodos(todos?.map(todo => {
+        if(todo?.id === todoItemId) {
+          return {
+            ...todo,
+            checked: !todo?.checked
+          }
+        }
+
+        return todo;
+      }));
+    } catch(error) {
+      setError(JSON.stringify(error.response.data))
+    }
+    
   };
 
-  const resetButtonOnClick = (): void => {
-    axios.post("/reset").then(() => location.reload());
+  const resetButtonOnClick = async (): Promise<void> => {
+    try {
+      await axios.post('/reset');
+      setTodos(todos?.map(todo => ({
+        ...todo,
+        checked: false
+      })));
+    } catch(error) {
+      setError(JSON.stringify(error.response.data))
+    }
+    
   };
 
   return (
     <Container>
       <h3>2022 Wish List</h3>
+      {error && (
+        <Alert variant="danger">
+          {error}
+        </Alert>
+      )}
       <ListGroup>
-        {todoItems.map((todo) => (
+        {todos.map((todo) => (
           <ListGroup.Item key={todo.id}>
             <Form.Check
               type="checkbox"
